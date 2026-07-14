@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OpenReels Studio - یک استودیو رایگان و متن‌باز برای ساخت پادکست و ریلز ویدیویی در مرورگر">
+    <title>OpenReels Studio | پادکست ساز آنلاین</title>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.0/Vazirmatn-font-face.css" rel="stylesheet" type="text/css" />
+    <style>
+        :root {
+            --bg-base: #030712; --panel-bg: rgba(15, 23, 42, 0.85); --border: rgba(255, 255, 255, 0.1);
+            --primary: #6366f1; --secondary: #ec4899; --danger: #ef4444;
+            --text-main: #f8fafc; --text-muted: #94a3b8;
+        }
+
+        body { font-family: 'Vazirmatn', sans-serif; background-color: var(--bg-base); color: var(--text-main); margin: 0; display: flex; height: 100vh; overflow: hidden; background-image: radial-gradient(rgba(255,255,255,0.03) 2px, transparent 2px); background-size: 30px 30px; }
+        
+        /* Dashboard Styling */
+        .dashboard { width: 420px; background: var(--panel-bg); backdrop-filter: blur(30px); border-left: 1px solid var(--border); padding: 25px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; z-index: 100; margin: 15px; border-radius: 24px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); }
+        .dashboard::-webkit-scrollbar { width: 4px; } .dashboard::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+        
+        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 12px;}
+        .header h1 { margin: 0; font-size: 22px; font-weight: 900; background: linear-gradient(135deg, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .live-badge { background: rgba(239, 68, 68, 0.1); border: 1px solid var(--danger); color: var(--danger); padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 800; animation: pulse-red 2s infinite; display: none; }
+
+        @keyframes pulse-red { 0%, 100% { box-shadow: 0 0 0 rgba(239, 68, 68, 0); } 50% { box-shadow: 0 0 15px rgba(239, 68, 68, 0.5); } }
+
+        .control-group { display: flex; flex-direction: column; gap: 8px; }
+        .group-title { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; display: flex; align-items: center; gap: 8px; margin-top: 5px; }
+        .group-title::after { content: ''; flex-grow: 1; height: 1px; background: var(--border); }
+        
+        label { font-size: 11px; color: #cbd5e1; font-weight: bold; margin-bottom: -2px;}
+        input[type="text"], input[type="file"], select { width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); color: var(--text-main); border-radius: 10px; font-family: 'Vazirmatn'; font-size: 12px; transition: all 0.3s; box-sizing: border-box; }
+        input[type="text"]:focus, select:focus { outline: none; border-color: var(--primary); background: rgba(99, 102, 241, 0.05); }
+        .social-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        /* Buttons */
+        .btn { border: none; padding: 14px; border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 800; font-family: 'Vazirmatn'; transition: all 0.3s; width: 100%; }
+        .btn-init { background: rgba(255,255,255,0.03); color: var(--text-main); border: 1px solid rgba(255,255,255,0.1); }
+        .btn-init:hover { background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.2); }
+        .btn-record { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; margin-top: 5px; }
+        .btn-record.recording { background: var(--danger); box-shadow: 0 10px 30px rgba(239, 68, 68, 0.4); animation: pulse-btn 2s infinite;}
+        @keyframes pulse-btn { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.2); } }
+
+        /* Stage */
+        .stage { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+        .monitor-frame { border-radius: 32px; padding: 12px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); box-shadow: 0 40px 100px rgba(0,0,0,1); }
+        canvas { background-color: #000; width: 360px; height: 640px; border-radius: 20px; display: block; }
+        #rawVideo, #upVideo, #upImage { display: none; }
+        
+        .github-link { text-align: center; margin-top: 10px; font-size: 12px; }
+        .github-link a { color: var(--primary); text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard">
+        <div class="header">
+            <h1>OpenReels Studio</h1>
+            <div class="live-badge" id="liveBadge">REC</div>
+        </div>
+
+        <button class="btn btn-init" id="initBtn" onclick="initializeStudio()">روشن کردن استودیو (مجوز دوربین)</button>
+
+        <div class="control-group">
+            <span class="group-title">سخت‌افزار و تصویر</span>
+            <label>لنز دوربین:</label>
+            <select id="camSelect" onchange="changeCamera()"><option>در انتظار اتصال...</option></select>
+            <label>میکروفون:</label>
+            <select id="micSelect" onchange="changeMicrophone()"><option>در انتظار اتصال...</option></select>
+            <label>پس‌زمینه:</label>
+            <select id="sourceSelect">
+                <option value="black">تاریک (Dark)</option>
+                <option value="webcam">تمام‌صفحه دوربین (Full Cam)</option>
+                <option value="video">ویدیوی آپلودی (Video)</option>
+                <option value="image">عکس ثابت (Image)</option>
+            </select>
+            <div style="display: flex; gap:5px;">
+                <input type="file" id="videoUpload" accept="video/*" title="آپلود ویدیو">
+                <input type="file" id="imageUpload" accept="image/*" title="آپلود عکس">
+            </div>
+        </div>
+
+        <div class="control-group">
+            <span class="group-title">استایل و کادر</span>
+            <select id="frameStyle">
+                <option value="portrait">کادر میزبان: پرتره سینمایی</option>
+                <option value="circle">کادر میزبان: آواتار دایره‌ای</option>
+                <option value="none">بدون کادر میزبان (مخفی)</option>
+            </select>
+            <select id="visSelect">
+                <option value="circle">اکولایزر: حلقه انرژی</option>
+                <option value="mirrored">اکولایزر: میله‌های قرینه</option>
+                <option value="wave">اکولایزر: موج فرکانسی</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <span class="group-title">اطلاعات پادکست</span>
+            <input type="file" id="logoUpload" accept="image/*" title="آپلود لوگو">
+            <input type="text" id="podTitle" value="OPEN REELS PODCAST" placeholder="عنوان اصلی">
+            <input type="text" id="progName" value="نام میزبان" placeholder="نام میزبان">
+            <input type="text" id="topicName" value="موضوع برنامه" placeholder="موضوع">
+        </div>
+
+        <div class="control-group">
+            <span class="group-title">شبکه‌های اجتماعی</span>
+            <div class="social-inputs">
+                <input type="text" id="igName" value="@openreels" placeholder="Instagram">
+                <input type="text" id="ytName" value="Open Reels" placeholder="YouTube">
+                <input type="text" id="tgName" value="@openreels_ch" placeholder="Telegram">
+                <input type="text" id="fbName" value="" placeholder="Facebook">
+            </div>
+        </div>
+
+        <button class="btn btn-record" id="recordBtn" onclick="handleRecordClick()">شروع ضبط پادکست</button>
+        
+        <div class="github-link">
+            Powered by <a href="#" target="_blank">Open-Source Code</a>
+        </div>
+    </div>
+
+    <div class="stage">
+        <div class="monitor-frame">
+            <canvas id="engineCanvas" width="1080" height="1920"></canvas>
+            <video id="rawVideo" autoplay muted playsinline></video>
+            <video id="upVideo" loop playsinline crossorigin="anonymous"></video>
+            <img id="upImage">
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('engineCanvas');
+        const ctx = canvas.getContext('2d');
+        const webCamVid = document.getElementById('rawVideo');
+        const upVid = document.getElementById('upVideo');
+        const upImg = document.getElementById('upImage');
+        const initBtn = document.getElementById('initBtn');
+        const recordBtn = document.getElementById('recordBtn');
+
+        let mediaStream = null; let audioCtx = null; let analyser = null; let audioData = null;
+        let mediaRecorder = null; let chunks = []; let logoImg = null;
+        let engineState = 'IDLE'; let recordStartTime = 0; let countdownValue = 3;
+
+        ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+        // File Uploads
+        document.getElementById('videoUpload').addEventListener('change', e => { if(e.target.files[0]) { upVid.src = URL.createObjectURL(e.target.files[0]); document.getElementById('sourceSelect').value = 'video'; upVid.muted = true; upVid.play(); }});
+        document.getElementById('imageUpload').addEventListener('change', e => { if(e.target.files[0]) { upImg.src = URL.createObjectURL(e.target.files[0]); document.getElementById('sourceSelect').value = 'image'; }});
+        document.getElementById('logoUpload').addEventListener('change', e => { if(e.target.files[0]) { logoImg = new Image(); logoImg.src = URL.createObjectURL(e.target.files[0]); }});
+
+        const easeOutElastic = x => { const c4 = (2 * Math.PI) / 3; return x === 0 ? 0 : x === 1 ? 1 : Math.pow(2, -10 * x) * Math.sin((x * 10 - 0.75) * c4) + 1; };
+        const easeOutExpo = x => x === 1 ? 1 : 1 - Math.pow(2, -10 * x);
+        const easeInOutQuint = x => x < 0.5 ? 16 * x * x * x * x * x : 1 - Math.pow(-2 * x + 2, 5) / 2;
+        function roundRect(ctx, x, y, width, height, radius, fill, stroke) { ctx.beginPath(); ctx.roundRect(x, y, width, height, radius); if(fill) ctx.fill(); if(stroke) ctx.stroke(); }
+
+        // Core Engine
+        async function initializeStudio() {
+            initBtn.innerText = 'درحال آماده‌سازی...';
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ video: {width: {ideal: 1920}, height: {ideal: 1080}}, audio: true });
+                await populateDevices(); await setupAudioEngine(mediaStream);
+                webCamVid.srcObject = mediaStream;
+                initBtn.innerHTML = '✅ استودیو لایو شد'; initBtn.style.background = 'rgba(16, 185, 129, 0.1)'; initBtn.style.color = '#34d399';
+                engineState = 'READY'; requestAnimationFrame(renderLoop);
+            } catch (err) { alert("دسترسی دوربین/میکروفون مسدود است!"); initBtn.innerText = 'خطا'; }
+        }
+
+        async function populateDevices() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const micSelect = document.getElementById('micSelect'); const camSelect = document.getElementById('camSelect');
+            micSelect.innerHTML = ''; camSelect.innerHTML = '';
+            devices.filter(d => d.kind === 'audioinput').forEach((mic, i) => { micSelect.add(new Option(mic.label || `میکروفون ${i + 1}`, mic.deviceId)); });
+            devices.filter(d => d.kind === 'videoinput').forEach((cam, i) => { camSelect.add(new Option(cam.label || `دوربین ${i + 1}`, cam.deviceId)); });
+        }
+
+        async function changeCamera() {
+            if(engineState === 'IDLE') return;
+            const camId = document.getElementById('camSelect').value;
+            try {
+                mediaStream.getVideoTracks().forEach(t => t.stop());
+                const newVideoStream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: camId }, width: {ideal: 1920}, height: {ideal: 1080} }});
+                mediaStream = new MediaStream([newVideoStream.getVideoTracks()[0], mediaStream.getAudioTracks()[0]]);
+                webCamVid.srcObject = mediaStream;
+            } catch(e) {}
+        }
+
+        async function changeMicrophone() {
+            if(engineState === 'IDLE') return;
+            const micId = document.getElementById('micSelect').value;
+            try {
+                mediaStream.getAudioTracks().forEach(t => t.stop());
+                const newAudioStream = await navigator.mediaDevices.getUserMedia({ audio: { deviceId: { exact: micId } }});
+                mediaStream = new MediaStream([mediaStream.getVideoTracks()[0], newAudioStream.getAudioTracks()[0]]);
+                await setupAudioEngine(mediaStream);
+            } catch(e) {}
+        }
+
+        async function setupAudioEngine(stream) {
+            if(audioCtx) audioCtx.close();
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioCtx.createMediaStreamSource(stream);
+            analyser = audioCtx.createAnalyser(); analyser.fftSize = 128; analyser.smoothingTimeConstant = 0.85;
+            source.connect(analyser); audioData = new Uint8Array(analyser.frequencyBinCount);
+        }
+
+        // Render Loop
+        function renderLoop(timestamp) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const source = document.getElementById('sourceSelect').value;
+
+            // Background
+            ctx.save();
+            if (source === 'webcam' && webCamVid.readyState >= 2) drawMediaCover(webCamVid, true);
+            else if (source === 'video' && upVid.readyState >= 2) drawMediaCover(upVid, false);
+            else if (source === 'image' && upImg.complete) drawMediaCover(upImg, false);
+            else { ctx.fillStyle = '#030712'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+            
+            const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, 'rgba(0,0,0,0.5)'); grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+            ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.restore();
+
+            drawWebcamFrame();
+
+            if (analyser && engineState !== 'COUNTDOWN') { analyser.getByteFrequencyData(audioData); drawAestheticVisualizer(); }
+
+            if (engineState === 'RECORDING') {
+                const elapsed = (timestamp - recordStartTime) / 1000;
+                drawPremiumBadge(elapsed); drawLiveTimer(timestamp); drawLowerThird(elapsed); drawSocialCarousel(elapsed);
+            }
+
+            if (engineState === 'COUNTDOWN') drawCinematicCountdown();
+            requestAnimationFrame(renderLoop);
+        }
+
+        function drawMediaCover(elem, mirror) {
+            const w = elem.videoWidth || elem.naturalWidth; const h = elem.videoHeight || elem.naturalHeight;
+            const scale = Math.max(canvas.width/w, canvas.height/h);
+            const dw = w*scale; const dh = h*scale;
+            const dx = (canvas.width-dw)/2; const dy = (canvas.height-dh)/2;
+            if(mirror) { ctx.save(); ctx.translate(canvas.width, 0); ctx.scale(-1, 1); ctx.drawImage(elem, -dx, dy, dw, dh); ctx.restore(); }
+            else { ctx.drawImage(elem, dx, dy, dw, dh); }
+        }
+
+        function drawWebcamFrame() {
+            const frameStyle = document.getElementById('frameStyle').value;
+            if (frameStyle === 'none' || webCamVid.readyState < 2) return;
+            ctx.save(); const fw = 800; const fh = frameStyle === 'portrait' ? 850 : 800; const fx = (canvas.width - fw) / 2; const fy = 250; 
+            ctx.shadowColor = 'rgba(99, 102, 241, 0.4)'; ctx.shadowBlur = 50;
+            ctx.beginPath();
+            if (frameStyle === 'portrait') ctx.roundRect(fx, fy, fw, fh, 50); else ctx.arc(canvas.width/2, fy + fh/2, fw/2, 0, Math.PI*2);
+            ctx.save(); ctx.clip();
+            const vScale = Math.max(fw / webCamVid.videoWidth, fh / webCamVid.videoHeight);
+            const vw = webCamVid.videoWidth * vScale; const vh = webCamVid.videoHeight * vScale;
+            ctx.translate(canvas.width/2, fy + fh/2); ctx.scale(-1, 1); ctx.drawImage(webCamVid, -vw/2, -vh/2, vw, vh); ctx.restore();
+            ctx.lineWidth = 6; const bGrad = ctx.createLinearGradient(fx, fy, fx, fy+fh);
+            bGrad.addColorStop(0, '#6366f1'); bGrad.addColorStop(1, '#ec4899'); ctx.strokeStyle = bGrad; ctx.stroke();
+            ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.shadowColor = 'transparent'; ctx.stroke(); ctx.restore();
+        }
+
+        function drawAestheticVisualizer() {
+            const visType = document.getElementById('visSelect').value; const cx = canvas.width / 2; const cy = 1350; 
+            ctx.save(); ctx.shadowBlur = 30;
+            let bass = 0; for(let i=0; i<5; i++) bass += audioData[i]; const pump = bass / (5*255); 
+
+            if (visType === 'circle') {
+                const radius = 160 + (pump * 15); ctx.shadowColor = '#6366f1'; ctx.strokeStyle = 'rgba(99, 102, 241, 0.9)'; ctx.lineWidth = 5;
+                ctx.beginPath();
+                for (let i = 0; i < 64; i++) { const h = (audioData[i] / 255) * 100; const angle = (i * 2 * Math.PI) / 64; ctx.moveTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius); ctx.lineTo(cx + Math.cos(angle) * (radius + h), cy + Math.sin(angle) * (radius + h)); } ctx.stroke();
+            } else if (visType === 'mirrored') {
+                const barW = 14; const gap = 12; const numBars = 12;
+                for (let i = 0; i < numBars; i++) { const h = Math.max((audioData[i*2] / 255) * 200, 8); const offsetX = (i * (barW + gap)) + 180; const grad = ctx.createLinearGradient(0, cy - h/2, 0, cy + h/2); grad.addColorStop(0, 'rgba(236, 72, 153, 0.9)'); grad.addColorStop(1, 'rgba(99, 102, 241, 0.4)'); ctx.fillStyle = grad; ctx.shadowColor = '#ec4899'; roundRect(ctx, cx + offsetX, cy - h/2, barW, h, 6, true); roundRect(ctx, cx - barW - offsetX, cy - h/2, barW, h, 6, true); }
+            } else if (visType === 'wave') {
+                ctx.shadowColor = '#8b5cf6'; ctx.lineWidth = 12; const grad = ctx.createLinearGradient(0, 0, canvas.width, 0); grad.addColorStop(0, '#6366f1'); grad.addColorStop(1, '#ec4899'); ctx.strokeStyle = grad; ctx.beginPath(); const sliceW = canvas.width / 20; ctx.moveTo(0, cy + 150);
+                for (let i = 0; i < 20; i++) { const h = (audioData[i] / 255) * 200; ctx.quadraticCurveTo((i * sliceW) + sliceW/2, cy + 150 - h, (i+1) * sliceW, cy + 150); } ctx.stroke();
+            }
+
+            const logoRadius = 140 + (pump * 5); ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 30; ctx.fillStyle = 'rgba(3, 7, 18, 0.9)'; ctx.beginPath(); ctx.arc(cx, cy, logoRadius, 0, Math.PI*2); ctx.fill();
+            if (logoImg && logoImg.complete) { ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, logoRadius - 4, 0, Math.PI*2); ctx.clip(); const s = Math.max((logoRadius*2)/logoImg.width, (logoRadius*2)/logoImg.height); ctx.drawImage(logoImg, cx - (logoImg.width*s)/2, cy - (logoImg.height*s)/2, logoImg.width*s, logoImg.height*s); ctx.restore(); } 
+            else { ctx.shadowColor = 'transparent'; ctx.fillStyle = '#fff'; ctx.textAlign='center'; ctx.font = '900 35px Arial'; ctx.letterSpacing = '5px'; ctx.fillText('PODCAST', cx, cy); }
+            ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, logoRadius, 0, Math.PI*2); ctx.stroke(); ctx.restore();
+        }
+
+        function drawPremiumBadge(elapsed) {
+            const title = document.getElementById('podTitle').value; if(!title) return;
+            const anim = Math.min(Math.max(elapsed / 1.0, 0), 1);
+            if(anim > 0) {
+                const ease = easeOutElastic(anim); ctx.save(); ctx.translate(0, -100 * (1-ease)); ctx.textAlign = 'center'; ctx.font = '800 40px Vazirmatn'; const tw = ctx.measureText(title).width + 100;
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.6)'; ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 25; roundRect(ctx, (canvas.width-tw)/2, 80, tw, 70, 35, true);
+                ctx.strokeStyle = 'rgba(99, 102, 241, 0.8)'; ctx.lineWidth = 2; roundRect(ctx, (canvas.width-tw)/2, 80, tw, 70, 35, false, true);
+                ctx.shadowColor = 'transparent'; ctx.fillStyle = '#f8fafc'; ctx.fillText(title, canvas.width/2, 118); ctx.restore();
+            }
+        }
+
+        function drawLiveTimer(timestamp) {
+            const t = Math.floor((timestamp - recordStartTime) / 1000); const m = String(Math.floor(t / 60)).padStart(2, '0'); const s = String(t % 60).padStart(2, '0');
+            ctx.save(); ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'; roundRect(ctx, 40, 85, 180, 50, 25, true); ctx.fillStyle = Math.floor(timestamp / 500) % 2 === 0 ? '#ef4444' : 'rgba(239, 68, 68, 0.2)'; ctx.beginPath(); ctx.arc(65, 110, 8, 0, Math.PI*2); ctx.fill();
+            ctx.textAlign = 'left'; ctx.fillStyle = '#fff'; ctx.font = 'bold 28px monospace'; ctx.fillText(`${m}:${s}`, 85, 113); ctx.restore();
+        }
+
+        function drawLowerThird(elapsed) {
+            const pName = document.getElementById('progName').value; const tName = document.getElementById('topicName').value; const anim = Math.min(Math.max((elapsed - 0.5) / 1.5, 0), 1);
+            if (anim > 0) {
+                const ease = easeOutElastic(anim); const rm = canvas.width - 50; const y = 1550; const offset = (canvas.width) * (1 - ease);
+                ctx.save(); ctx.translate(offset, 0); ctx.textAlign = 'right'; ctx.font = '900 65px Vazirmatn'; const w1 = ctx.measureText(pName).width; ctx.font = '500 40px Vazirmatn'; const w2 = ctx.measureText(tName).width; const boxW = Math.max(w1, w2) + 100;
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.75)'; ctx.shadowBlur = 40; ctx.shadowColor='rgba(0,0,0,0.8)'; roundRect(ctx, rm - boxW, y, boxW, 180, 25, true);
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 2; roundRect(ctx, rm - boxW, y, boxW, 180, 25, false, true);
+                const grad = ctx.createLinearGradient(0, y, 0, y + 180); grad.addColorStop(0, '#6366f1'); grad.addColorStop(1, '#ec4899'); ctx.fillStyle = grad; roundRect(ctx, rm - 12, y + 15, 8, 150, 4, true);
+                ctx.shadowColor='transparent'; ctx.fillStyle = '#ffffff'; ctx.font = '900 55px Vazirmatn'; ctx.fillText(pName, rm - 40, y + 70); ctx.fillStyle = '#cbd5e1'; ctx.font = '500 36px Vazirmatn'; ctx.fillText(tName, rm - 40, y + 135); ctx.restore();
+            }
+        }
+
+        function drawSocialCarousel(elapsed) {
+            const rawSocials = [{ id: 'igName', color: 'linear-gradient(45deg, #f09433, #dc2743, #bc1888)', icon: drawIG }, { id: 'ytName', color: '#FF0000', icon: drawYT }, { id: 'tgName', color: '#0088cc', icon: drawTG }, { id: 'fbName', color: '#1877F2', icon: drawFB }];
+            const active = rawSocials.filter(s => document.getElementById(s.id).value.trim() !== ''); if(active.length === 0) return;
+            const startX = 50; const startY = 1600; const dur = 4.0; const cIdx = Math.floor((elapsed - 1.0) / dur); 
+            if (elapsed < 1.0 || cIdx >= active.length * 10) return; 
+            const soc = active[cIdx % active.length]; const lTime = (elapsed - 1.0) % dur;
+            let anim = lTime < 0.8 ? easeOutElastic(lTime / 0.8) : (lTime > dur - 0.5 ? easeInOutQuint(1 - ((lTime - (dur - 0.5)) / 0.5)) : 1);
+            const val = document.getElementById(soc.id).value;
+            ctx.save(); ctx.translate(startX - (500 * (1 - anim)), startY); ctx.font = '700 32px Vazirmatn'; const tw = ctx.measureText(val).width; const bw = tw + 110;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.85)'; ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur=20; roundRect(ctx, 0, 0, bw, 70, 35, true); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth=1; roundRect(ctx, 0, 0, bw, 70, 35, false, true);
+            if(soc.color.includes('gradient')) { const g = ctx.createLinearGradient(0,0,70,70); g.addColorStop(0,'#f09433'); g.addColorStop(0.5,'#dc2743'); g.addColorStop(1,'#bc1888'); ctx.fillStyle = g; } else { ctx.fillStyle = soc.color; }
+            ctx.shadowColor='transparent'; ctx.beginPath(); ctx.arc(35, 35, 28, 0, Math.PI*2); ctx.fill(); ctx.save(); ctx.translate(15, 15); soc.icon(ctx); ctx.restore(); ctx.textAlign = 'left'; ctx.fillStyle = '#f8fafc'; ctx.fillText(val, 80, 38); ctx.restore();
+        }
+
+        function drawIG(ctx) { ctx.strokeStyle='#fff'; ctx.lineWidth=3; ctx.beginPath(); ctx.roundRect(6,6,28,28,8); ctx.stroke(); ctx.beginPath(); ctx.arc(20,20,6,0,Math.PI*2); ctx.stroke(); ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(28,12,2,0,Math.PI*2); ctx.fill(); }
+        function drawYT(ctx) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.roundRect(4,10,32,20,5); ctx.fill(); ctx.fillStyle='#FF0000'; ctx.beginPath(); ctx.moveTo(16,14); ctx.lineTo(26,20); ctx.lineTo(16,26); ctx.fill(); }
+        function drawTG(ctx) { ctx.fillStyle='#fff'; ctx.beginPath(); ctx.moveTo(4,20); ctx.lineTo(36,8); ctx.lineTo(26,32); ctx.lineTo(20,24); ctx.lineTo(4,20); ctx.fill(); ctx.fillStyle='rgba(0,0,0,0.15)'; ctx.beginPath(); ctx.moveTo(20,24); ctx.lineTo(26,32); ctx.lineTo(22,24); ctx.fill(); }
+        function drawFB(ctx) { ctx.fillStyle='#fff'; ctx.font='900 36px Arial'; ctx.textAlign='center'; ctx.fillText('f',20,32); }
+
+        function drawCinematicCountdown() { ctx.fillStyle = 'rgba(3, 7, 18, 0.9)'; ctx.fillRect(0, 0, canvas.width, canvas.height); ctx.fillStyle = '#f8fafc'; ctx.textAlign = 'center'; ctx.font = '900 280px Vazirmatn'; ctx.shadowColor = '#6366f1'; ctx.shadowBlur = 60; ctx.fillText(Math.ceil(countdownValue), canvas.width/2, canvas.height/2 + 20); }
+
+        // Recording System
+        function handleRecordClick() {
+            if(!mediaStream) { alert("لطفا استودیو را روشن کنید."); return; }
+            if (engineState === 'READY' || engineState === 'IDLE') { engineState = 'COUNTDOWN'; recordBtn.disabled = true; countdownValue = 3; const intv = setInterval(() => { countdownValue--; if (countdownValue <= 0) { clearInterval(intv); startRecording(); } }, 1000); } 
+            else if (engineState === 'RECORDING') { stopRecording(); }
+        }
+
+        function startRecording() {
+            chunks = []; const finalStream = new MediaStream([...canvas.captureStream(60).getVideoTracks(), mediaStream.getAudioTracks()[0]]);
+            try { mediaRecorder = new MediaRecorder(finalStream, { mimeType: 'video/webm;codecs=vp9', videoBitsPerSecond: 25000000 }); } catch(e) { mediaRecorder = new MediaRecorder(finalStream, {mimeType: 'video/webm'}); }
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+            mediaRecorder.onstop = exportMasterpiece;
+            if(document.getElementById('sourceSelect').value === 'video') { upVid.currentTime = 0; upVid.play(); }
+            mediaRecorder.start(100); engineState = 'RECORDING'; recordStartTime = performance.now(); liveBadge.style.display = 'block'; recordBtn.disabled = false; recordBtn.classList.add('recording'); recordBtn.innerHTML = '⏹ پایان ضبط';
+        }
+
+        function stopRecording() { mediaRecorder.stop(); engineState = 'READY'; liveBadge.style.display = 'none'; recordBtn.classList.remove('recording'); recordBtn.innerText = '⏳ در حال خروجی...'; recordBtn.disabled = true; }
+        function exportMasterpiece() { const url = URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })); const a = document.createElement('a'); a.href = url; a.download = 'OpenReels_Export_' + Date.now() + '.webm'; document.body.appendChild(a); a.click(); document.body.removeChild(a); window.URL.revokeObjectURL(url); recordBtn.innerHTML = 'شروع ضبط مجدد'; recordBtn.disabled = false; }
+    </script>
+</body>
+</html>
